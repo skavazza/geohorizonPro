@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0e27">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>GeoHorizon Pro - Projeção Geográfica Avançada</title>
+  
+  <!-- CDN Dependencies -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-measure/dist/leaflet-measure.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-measure/dist/leaflet-measure.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --color-bg-primary: #0a0e27;
+      --color-bg-secondary: #141b3d;
+      --color-bg-tertiary: #1a2347;
+      --color-accent-cyan: #00fff5;
+      --color-accent-orange: #ff6b35;
+      --color-accent-green: #4CAF50;
+      --color-text-primary: #e8f4f8;
+      --color-text-secondary: #8b9dc3;
+      --font-display: 'Orbitron', sans-serif;
+      --font-body: 'Space Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--color-bg-primary);
+      color: var(--color-text-primary);
+      background-image: 
+        linear-gradient(rgba(0, 255, 245, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 245, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .header {
+      text-align: center;
+      padding: 2rem 1rem 1.5rem;
+      animation: fadeIn 0.6s ease-out;
+    }
+
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--color-accent-cyan) 0%, var(--color-accent-orange) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+    }
+
+    .header p {
+      color: var(--color-text-secondary);
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+    }
+
+    .main-container {
+      max-width: 1920px;
+      margin: 0 auto;
+      padding: 1rem;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 1.5rem;
+      animation: fadeIn 0.8s ease-out 0.2s backwards;
+    }
+
+    @media (max-width: 1200px) {
+      .main-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .sidebar {
+      background: var(--color-bg-secondary);
+      border-radius: 16px;
+      padding: 1.5rem;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(0, 255, 245, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.6s ease-out;
+      max-height: calc(100vh - 180px);
+      overflow-y: auto;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .sidebar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--color-accent-cyan);
+      border-radius: 4px;
+    }
+
+    .mode-selector {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .mode-btn {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0.75rem 0.5rem;
+      border: 2px solid rgba(0, 255, 245, 0.2);
+      background: transparent;
+      color: var(--color-text-secondary);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .mode-btn:hover {
+      border-color: var(--color-accent-cyan);
+      color: var(--color-accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 255, 245, 0.2);
+    }
+
+    .mode-btn.active {
+      background: linear-gradient(135deg, rgba(0, 255, 245, 0.15), rgba(0, 255, 245, 0.05));
+      border-color: var(--color-accent-cyan);
+      color: var(--color-accent-cyan);
+      box-shadow: 0 0 20px rgba(0, 255, 245, 0.3);
+    }
+
+    .section {
+      background: rgba(0, 20, 40, 0.3);
+      border: 1px solid rgba(0, 255, 245, 0.1);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      color: var(--color-accent-cyan);
+      margin: 0 0 1rem 0;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-bottom: 1px solid rgba(0, 255, 245, 0.2);
+      padding-bottom: 0.5rem;
+    }
+
+    .input-group {
+      margin-bottom: 1rem;
+    }
+
+    .input-label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--color-text-secondary);
+      margin-bottom: 0.4rem;
+      font-weight: 700;
+    }
+
+    .input-field, .select-field {
+      width: 100%;
+      padding: 0.75rem;
+      background: rgba(0, 20, 40, 0.5);
+      border: 1px solid rgba(0, 255, 245, 0.2);
+      border-radius: 6px;
+      color: var(--color-text-primary);
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+
+    .input-field:focus, .select-field:focus {
+      outline: none;
+      border-color: var(--color-accent-cyan);
+      box-shadow: 0 0 12px rgba(0, 255, 245, 0.3);
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .btn {
+      font-family: var(--font-display);
+      font-weight: 700;
+      padding: 0.875rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.9rem;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--color-accent-orange), #ff8c42);
+      color: white;
+      box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 107, 53, 0.6);
+    }
+
+    .btn-secondary {
+      background: rgba(0, 255, 245, 0.1);
+      color: var(--color-accent-cyan);
+      border: 1px solid var(--color-accent-cyan);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(0, 255, 245, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .btn-success {
+      background: rgba(76, 175, 80, 0.1);
+      color: var(--color-accent-green);
+      border: 1px solid var(--color-accent-green);
+    }
+
+    .btn-success:hover {
+      background: rgba(76, 175, 80, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: 0.8rem;
+      margin-top: 0;
+    }
+
+    .results {
+      background: rgba(0, 20, 40, 0.5);
+      border: 1px solid rgba(0, 255, 245, 0.2);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .result-item:last-child {
+      border-bottom: none;
+    }
+
+    .result-label {
+      color: var(--color-text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .result-value {
+      color: var(--color-accent-cyan);
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--color-accent-cyan);
+    }
+
+    .checkbox-group label {
+      color: var(--color-text-secondary);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .export-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .map-container {
+      background: var(--color-bg-secondary);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 255, 245, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      height: calc(100vh - 180px);
+      animation: slideIn 0.6s ease-out 0.2s backwards;
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    .leaflet-popup-content-wrapper {
+      background: var(--color-bg-secondary);
+      color: var(--color-text-primary);
+      font-family: var(--font-body);
+      border: 1px solid var(--color-accent-cyan);
+      border-radius: 8px;
+    }
+
+    .leaflet-popup-tip {
+      background: var(--color-bg-secondary);
+    }
+
+    .notification {
+      position: fixed;
+      top: 2rem;
+      right: 2rem;
+      background: var(--color-bg-secondary);
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--color-accent-cyan);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      z-index: 10000;
+      animation: fadeIn 0.3s ease-out;
+      max-width: 320px;
+      font-size: 0.9rem;
+      opacity: 0;
+      transform: translateX(400px);
+      transition: all 0.3s ease-in-out;
+    }
+
+    .notification.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .notification.error {
+      border-color: var(--color-accent-orange);
+      color: var(--color-accent-orange);
+    }
+
+    .notification.success {
+      border-color: var(--color-accent-green);
+      color: var(--color-accent-green);
+    }
+
+    .loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--color-bg-secondary);
+      padding: 2rem;
+      border-radius: 16px;
+      border: 2px solid var(--color-accent-cyan);
+      z-index: 10001;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: none;
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(0, 255, 245, 0.2);
+      border-top-color: var(--color-accent-cyan);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    .compass {
+      position: absolute;
+      bottom: 100px;
+      right: 20px;
+      width: 80px;
+      height: 80px;
+      background: rgba(10, 14, 39, 0.95);
+      border: 2px solid var(--color-accent-cyan);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .compass::after {
+      content: 'N';
+      position: absolute;
+      top: 8px;
+      font-size: 0.75rem;
+      color: var(--color-accent-cyan);
+      font-weight: 700;
+      font-family: var(--font-display);
+    }
+
+    .compass-needle {
+      width: 4px;
+      height: 35px;
+      background: linear-gradient(to top, var(--color-accent-orange), red);
+      border-radius: 2px;
+      position: absolute;
+      transition: transform 0.3s ease;
+      transform-origin: center bottom;
+    }
+
+    .leaflet-control-layers {
+      background: var(--color-bg-secondary) !important;
+      border: 1px solid rgba(0, 255, 245, 0.2) !important;
+      border-radius: 8px !important;
+    }
+
+    .leaflet-control-layers-expanded {
+      color: var(--color-text-primary);
+      font-family: var(--font-body);
+      padding: 0.5rem;
+    }
+
+    .center-button {
+      background: var(--color-bg-secondary) !important;
+      border: 2px solid var(--color-accent-cyan) !important;
+      color: var(--color-accent-cyan) !important;
+      border-radius: 4px !important;
+      width: 34px !important;
+      height: 34px !important;
+      font-size: 1.2rem !important;
+      cursor: pointer !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      transition: all 0.3s ease !important;
+    }
+
+    .center-button:hover {
+      background: rgba(0, 255, 245, 0.1) !important;
+      transform: scale(1.1) !important;
+    }
+
+    .leaflet-control-zoom a {
+      background: var(--color-bg-secondary) !important;
+      border: 1px solid rgba(0, 255, 245, 0.2) !important;
+      color: var(--color-accent-cyan) !important;
+      width: 34px !important;
+      height: 34px !important;
+      line-height: 34px !important;
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: rgba(0, 255, 245, 0.1) !important;
+    }
+
+    @media (max-width: 768px) {
+      .compass {
+        width: 60px;
+        height: 60px;
+        bottom: 80px;
+        right: 15px;
+      }
+
+      .compass-needle {
+        height: 25px;
+        width: 3px;
+      }
+
+      .compass::after {
+        font-size: 0.65rem;
+        top: 6px;
+      }
+
+      .main-container {
+        padding: 0.5rem;
+        gap: 0.75rem;
+      }
+
+      .header h1 {
+        font-size: 1.75rem;
+      }
+
+      .map-container {
+        height: 500px;
+      }
+    }
+
+    /* Cursor styles for map interaction modes */
+    .leaflet-container.crosshair-cursor {
+      cursor: crosshair !important;
+    }
+
+    .leaflet-container.crosshair-cursor * {
+      cursor: crosshair !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>GeoHorizon Pro</h1>
+    <p>Projeção Geográfica, Cálculo de Horizonte & Medições Avançadas</p>
+  </div>
+
+  <div class="main-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <!-- Mode Selector -->
+      <div class="mode-selector">
+        <button class="mode-btn active" data-mode="projecao">🎯 Projeção</button>
+        <button class="mode-btn" data-mode="horizonte">🌅 Horizonte</button>
+        <button class="mode-btn" data-mode="objeto">🏢 Objeto</button>
+        <button class="mode-btn" data-mode="medicao">📏 Medição</button>
+      </div>
+
+      <!-- Localização -->
+      <div class="section">
+        <div class="section-title">📍 Localização</div>
+        <button class="btn btn-secondary" id="getLocation">📱 Usar Minha Localização</button>
+        <button class="btn btn-success" id="pickFromMap" style="margin-top: 0.5rem;">🗺️ Selecionar no Mapa</button>
+        
+        <div class="input-grid" style="margin-top: 1rem;">
+          <div class="input-group">
+            <label class="input-label">Latitude</label>
+            <input type="number" class="input-field" id="latitude" step="0.000001">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Longitude</label>
+            <input type="number" class="input-field" id="longitude" step="0.000001">
+          </div>
+        </div>
+      </div>
+
+      <!-- Parâmetros - Projeção -->
+      <div class="section" id="params-projecao">
+        <div class="section-title">⚙️ Parâmetros de Projeção</div>
+        <div class="input-group">
+          <label class="input-label">Elevação (m)</label>
+          <input type="number" class="input-field" id="elevacao" value="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Distância (km)</label>
+          <input type="number" class="input-field" id="distancia" value="10" step="0.1" min="0">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Azimute Magnético (°)</label>
+          <input type="number" class="input-field" id="azimute" value="0" step="0.1" min="0" max="360">
+        </div>
+        <button class="btn btn-primary" id="calcular">🔬 Calcular Projeção</button>
+      </div>
+
+      <!-- Parâmetros - Horizonte -->
+      <div class="section" id="params-horizonte" style="display: none;">
+        <div class="section-title">⚙️ Cálculo de Horizonte</div>
+        <div class="input-group">
+          <label class="input-label">Altura do Observador (m)</label>
+          <input type="number" class="input-field" id="alturaObservador" value="1.7" step="0.1" min="0">
+        </div>
+        <button class="btn btn-primary" id="calcularHorizonte">🔬 Calcular Horizonte</button>
+      </div>
+
+      <!-- Parâmetros - Objeto -->
+      <div class="section" id="params-objeto" style="display: none;">
+        <div class="section-title">⚙️ Cálculo de Objeto</div>
+        <div class="input-group">
+          <label class="input-label">Altura do Observador (m)</label>
+          <input type="number" class="input-field" id="alturaObservadorObj" value="1.7" step="0.1" min="0">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Altura do Objeto (m)</label>
+          <input type="number" class="input-field" id="alturaObjeto" value="50" step="0.1" min="0">
+        </div>
+        <button class="btn btn-primary" id="calcularObjeto">🔬 Calcular Distância</button>
+      </div>
+
+      <!-- Parâmetros - Medição -->
+      <div class="section" id="params-medicao" style="display: none;">
+        <div class="section-title">📏 Medição de Distância</div>
+        <button class="btn btn-success" id="toggleMeasurement">Ativar Medição</button>
+        <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--color-text-secondary);">
+          Clique no mapa para marcar 2 pontos e medir a distância entre eles.
+        </p>
+        <button class="btn btn-secondary btn-small" id="clearMeasurement" style="margin-top: 0.75rem;">Limpar Medições</button>
+      </div>
+
+      <!-- Resultados -->
+      <div class="section" id="resultados" style="display: none;">
+        <div class="section-title">📊 Resultados</div>
+        <div id="resultsContent"></div>
+      </div>
+
+      <!-- Configurações do Mapa -->
+      <div class="section">
+        <div class="section-title">🗺️ Configurações do Mapa</div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleRings" checked>
+          <label for="toggleRings">Anéis de Distância</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleLabels" checked>
+          <label for="toggleLabels">Legendas dos Anéis</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleCompass" checked>
+          <label for="toggleCompass">Bússola</label>
+        </div>
+        <div class="input-group" style="margin-top: 0.75rem;">
+          <label class="input-label">Estilo do Mapa</label>
+          <select class="select-field" id="mapStyle">
+            <option value="streets">OpenStreetMap</option>
+            <option value="satellite">Satélite</option>
+            <option value="terrain">Terreno</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Exportação -->
+      <div class="section">
+        <div class="section-title">💾 Exportar Dados</div>
+        <div class="export-buttons">
+          <button class="btn btn-secondary btn-small" id="exportGPX">GPX</button>
+          <button class="btn btn-secondary btn-small" id="exportKML">KML</button>
+          <button class="btn btn-secondary btn-small" id="exportJSON">JSON</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="map-container">
+      <div id="map"></div>
+      <div class="compass" id="compass">
+        <div class="compass-needle" id="compassNeedle"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification -->
+  <div class="notification" id="notification"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="loading-spinner"></div>
+    <p id="loadingText">Carregando...</p>
+  </div>
+
+  <script>
+    // ========== CONSTANTES ==========
+    const RAIO_TERRA = 6371; // km
+    const DECLINACAO_MAGNETICA = -23.933333; // Abrolhos, BA (23°56' Oeste)
+    const ABROLHOS = { lat: -17.962813, lng: -38.702645 };
+    const NM_TO_METERS = 1852;
+
+    // ========== VARIÁVEIS GLOBAIS ==========
+    let map;
+    let currentMode = 'projecao';
+    let markers = [];
+    let circles = [];
+    let rings = [];
+    let labels = [];
+    let measurementMarkers = [];
+    let measurementLine = null;
+    let measurementActive = false;
+    let mapPickingActive = false;
+    let baseLayer = null;
+    let compassHeading = 0;
+
+    // ========== FUNÇÕES AUXILIARES ==========
+    function showNotification(message, type = 'info') {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.className = 'notification show';
+      
+      if (type === 'error') {
+        notification.classList.add('error');
+      } else if (type === 'success') {
+        notification.classList.add('success');
+      }
+      
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 3000);
+    }
+
+    function showLoading(show, text = 'Carregando...') {
+      const loading = document.getElementById('loading');
+      const loadingText = document.getElementById('loadingText');
+      loadingText.textContent = text;
+      loading.className = show ? 'loading show' : 'loading';
+    }
+
+    function clearMarkers() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
+
+    function clearCircles() {
+      circles.forEach(c => map.removeLayer(c));
+      circles = [];
+    }
+
+    function clearRings() {
+      rings.forEach(r => map.removeLayer(r));
+      labels.forEach(l => map.removeLayer(l));
+      rings = [];
+      labels = [];
+    }
+
+    function clearMeasurements() {
+      measurementMarkers.forEach(m => map.removeLayer(m));
+      measurementMarkers = [];
+      if (measurementLine) {
+        map.removeLayer(measurementLine);
+        measurementLine = null;
+      }
+    }
+
+    // ========== CÁLCULOS ==========
+    function calcularDistanciaHorizonte(altura) {
+      const h = altura / 1000; // converter para km
+      return Math.sqrt(2 * RAIO_TERRA * h + h * h);
+    }
+
+    function calcularDistanciaObjeto(hObs, hObj) {
+      const dObs = calcularDistanciaHorizonte(hObs);
+      const dObj = calcularDistanciaHorizonte(hObj);
+      return dObs + dObj;
+    }
+
+    function calcularProjecao() {
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+      const azimuteMag = parseFloat(document.getElementById('azimute').value);
+      const distancia = parseFloat(document.getElementById('distancia').value);
+      const elevacao = parseFloat(document.getElementById('elevacao').value);
+
+      if (isNaN(lat) || isNaN(lng) || isNaN(azimuteMag) || isNaN(distancia)) {
+        showNotification('Por favor, preencha todos os campos com valores válidos', 'error');
+        return null;
+      }
+
+      // Corrigir declinação magnética
+      const azVerdadeiro = ((azimuteMag + DECLINACAO_MAGNETICA) % 360 + 360) % 360;
+
+      // Usar Turf.js para projeção precisa
+      const point = turf.point([lng, lat]);
+      const destination = turf.destination(point, distancia, azVerdadeiro);
+
+      return {
+        lat: destination.geometry.coordinates[1],
+        lng: destination.geometry.coordinates[0],
+        azimuteMag,
+        azVerdadeiro,
+        distancia,
+        elevacao
+      };
+    }
+
+    // ========== FUNÇÕES DE MAPA ==========
+    function createRings(centerLat, centerLng) {
+      clearRings();
+      
+      if (!document.getElementById('toggleRings').checked) return;
+
+      const showLabels = document.getElementById('toggleLabels').checked;
+
+      for (let i = 1; i <= 16; i++) {
+        const radius = i * NM_TO_METERS;
+        const hue = 120 - (i * 7.5); // Verde para vermelho
+        const color = `hsl(${hue}, 70%, 50%)`;
+        
+        const ring = L.circle([centerLat, centerLng], {
+          radius: radius,
+          color: color,
+          fillColor: 'transparent',
+          weight: 1,
+          opacity: 0.6
+        }).addTo(map);
+        rings.push(ring);
+
+        if (showLabels) {
+          // Posicionar label no nordeste (45°)
+          const point = turf.destination(
+            turf.point([centerLng, centerLat]),
+            i * 1.852,
+            45
+          );
+          
+          const label = L.marker([point.geometry.coordinates[1], point.geometry.coordinates[0]], {
+            icon: L.divIcon({
+              className: 'ring-label',
+              html: `<div style="font-family: var(--font-body); font-size: 10px; font-weight: 700; color: white; background: ${color}; padding: 2px 6px; border-radius: 4px; border: 1px solid white; white-space: nowrap;">${i} NM</div>`,
+              iconSize: [40, 20]
+            })
+          }).addTo(map);
+          labels.push(label);
+        }
+      }
+    }
+
+    function updateMap() {
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      clearMarkers();
+      clearCircles();
+
+      // Marcador do observador
+      const observerMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: 'observer-marker',
+          html: `<div style="width: 16px; height: 16px; background: var(--color-accent-cyan); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px var(--color-accent-cyan);"></div>`,
+          iconSize: [22, 22]
+        })
+      }).addTo(map).bindPopup(`<strong>Observador</strong><br>Lat: ${lat.toFixed(6)}°<br>Lng: ${lng.toFixed(6)}°`);
+      markers.push(observerMarker);
+
+      createRings(lat, lng);
+    }
+
+    // ========== EVENT HANDLERS ==========
+    function handleCalcular() {
+      const resultado = calcularProjecao();
+      if (!resultado) return;
+
+      clearCircles();
+
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+
+      // Adicionar marcador do alvo
+      const targetMarker = L.marker([resultado.lat, resultado.lng], {
+        icon: L.divIcon({
+          className: 'target-marker',
+          html: `<div style="width: 20px; height: 20px; background: var(--color-accent-orange); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px var(--color-accent-orange);"></div>`,
+          iconSize: [26, 26]
+        })
+      }).addTo(map).bindPopup(`
+        <strong>Alvo Projetado</strong><br>
+        Lat: ${resultado.lat.toFixed(6)}°<br>
+        Lng: ${resultado.lng.toFixed(6)}°<br>
+        Azimute Mag: ${resultado.azimuteMag.toFixed(2)}°<br>
+        Azimute Real: ${resultado.azVerdadeiro.toFixed(2)}°<br>
+        Distância: ${resultado.distancia} km
+      `).openPopup();
+      markers.push(targetMarker);
+
+      // Linha do observador ao alvo
+      L.polyline([[lat, lng], [resultado.lat, resultado.lng]], {
+        color: 'var(--color-accent-orange)',
+        weight: 2,
+        dashArray: '5, 10'
+      }).addTo(map);
+
+      // Mostrar resultados
+      document.getElementById('resultados').style.display = 'block';
+      document.getElementById('resultsContent').innerHTML = `
+        <div class="result-item">
+          <span class="result-label">Latitude Alvo</span>
+          <span class="result-value">${resultado.lat.toFixed(6)}°</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Longitude Alvo</span>
+          <span class="result-value">${resultado.lng.toFixed(6)}°</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Azimute Magnético</span>
+          <span class="result-value">${resultado.azimuteMag.toFixed(2)}°</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Azimute Verdadeiro</span>
+          <span class="result-value">${resultado.azVerdadeiro.toFixed(2)}°</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Distância</span>
+          <span class="result-value">${resultado.distancia.toFixed(2)} km</span>
+        </div>
+      `;
+
+      showNotification('Projeção calculada com sucesso!', 'success');
+    }
+
+    function handleCalcularHorizonte() {
+      const altura = parseFloat(document.getElementById('alturaObservador').value);
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+
+      if (isNaN(altura) || isNaN(lat) || isNaN(lng)) {
+        showNotification('Por favor, preencha todos os campos', 'error');
+        return;
+      }
+
+      const distancia = calcularDistanciaHorizonte(altura);
+
+      clearCircles();
+
+      // Círculo do horizonte
+      const horizonCircle = L.circle([lat, lng], {
+        radius: distancia * 1000,
+        color: 'var(--color-accent-cyan)',
+        fillColor: 'var(--color-accent-cyan)',
+        fillOpacity: 0.1,
+        weight: 2
+      }).addTo(map);
+      circles.push(horizonCircle);
+
+      // Ajustar visualização
+      map.fitBounds(horizonCircle.getBounds());
+
+      // Mostrar resultados
+      document.getElementById('resultados').style.display = 'block';
+      document.getElementById('resultsContent').innerHTML = `
+        <div class="result-item">
+          <span class="result-label">Altura do Observador</span>
+          <span class="result-value">${altura.toFixed(2)} m</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Distância ao Horizonte</span>
+          <span class="result-value">${distancia.toFixed(2)} km</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Distância em Milhas Náuticas</span>
+          <span class="result-value">${(distancia / 1.852).toFixed(2)} NM</span>
+        </div>
+      `;
+
+      showNotification(`Distância ao horizonte: ${distancia.toFixed(2)} km`, 'success');
+    }
+
+    function handleCalcularObjeto() {
+      const alturaObs = parseFloat(document.getElementById('alturaObservadorObj').value);
+      const alturaObj = parseFloat(document.getElementById('alturaObjeto').value);
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+
+      if (isNaN(alturaObs) || isNaN(alturaObj) || isNaN(lat) || isNaN(lng)) {
+        showNotification('Por favor, preencha todos os campos', 'error');
+        return;
+      }
+
+      const distancia = calcularDistanciaObjeto(alturaObs, alturaObj);
+
+      clearCircles();
+
+      // Círculo do objeto
+      const objectCircle = L.circle([lat, lng], {
+        radius: distancia * 1000,
+        color: 'var(--color-accent-orange)',
+        fillColor: 'var(--color-accent-orange)',
+        fillOpacity: 0.1,
+        weight: 2,
+        dashArray: '10, 10'
+      }).addTo(map);
+      circles.push(objectCircle);
+
+      // Ajustar visualização
+      map.fitBounds(objectCircle.getBounds());
+
+      // Mostrar resultados
+      document.getElementById('resultados').style.display = 'block';
+      document.getElementById('resultsContent').innerHTML = `
+        <div class="result-item">
+          <span class="result-label">Altura do Observador</span>
+          <span class="result-value">${alturaObs.toFixed(2)} m</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Altura do Objeto</span>
+          <span class="result-value">${alturaObj.toFixed(2)} m</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Distância até o Objeto</span>
+          <span class="result-value">${distancia.toFixed(2)} km</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Distância em Milhas Náuticas</span>
+          <span class="result-value">${(distancia / 1.852).toFixed(2)} NM</span>
+        </div>
+      `;
+
+      showNotification(`Distância até o objeto: ${distancia.toFixed(2)} km`, 'success');
+    }
+
+    function handleMapClick(e) {
+      // Modo de seleção de coordenadas
+      if (mapPickingActive) {
+        document.getElementById('latitude').value = e.latlng.lat.toFixed(6);
+        document.getElementById('longitude').value = e.latlng.lng.toFixed(6);
+        
+        // Desativar modo de seleção
+        mapPickingActive = false;
+        document.getElementById('pickFromMap').textContent = '🗺️ Selecionar no Mapa';
+        document.getElementById('pickFromMap').classList.remove('btn-primary');
+        document.getElementById('pickFromMap').classList.add('btn-success');
+        map.getContainer().classList.remove('crosshair-cursor');
+        
+        // Atualizar mapa com nova localização
+        updateMap();
+        
+        showNotification(`Coordenadas selecionadas: ${e.latlng.lat.toFixed(6)}°, ${e.latlng.lng.toFixed(6)}°`, 'success');
+        return;
+      }
+
+      // Modo de medição de distância
+      if (!measurementActive) return;
+
+      if (measurementMarkers.length < 2) {
+        const marker = L.marker(e.latlng, {
+          icon: L.divIcon({
+            className: 'measurement-marker',
+            html: `<div style="width: 12px; height: 12px; background: var(--color-accent-green); border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px var(--color-accent-green);"></div>`,
+            iconSize: [16, 16]
+          })
+        }).addTo(map);
+        measurementMarkers.push(marker);
+
+        if (measurementMarkers.length === 2) {
+          const from = measurementMarkers[0].getLatLng();
+          const to = measurementMarkers[1].getLatLng();
+          
+          const fromPoint = turf.point([from.lng, from.lat]);
+          const toPoint = turf.point([to.lng, to.lat]);
+          const distance = turf.distance(fromPoint, toPoint);
+
+          measurementLine = L.polyline([from, to], {
+            color: 'var(--color-accent-green)',
+            weight: 3,
+            dashArray: '5, 10'
+          }).addTo(map).bindPopup(`
+            <strong>Distância Medida</strong><br>
+            ${distance.toFixed(2)} km<br>
+            ${(distance / 1.852).toFixed(2)} NM
+          `).openPopup();
+
+          // Mostrar resultados
+          document.getElementById('resultados').style.display = 'block';
+          document.getElementById('resultsContent').innerHTML = `
+            <div class="result-item">
+              <span class="result-label">Distância Medida</span>
+              <span class="result-value">${distance.toFixed(2)} km</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Distância em Milhas Náuticas</span>
+              <span class="result-value">${(distance / 1.852).toFixed(2)} NM</span>
+            </div>
+          `;
+
+          showNotification(`Distância: ${distance.toFixed(2)} km`, 'success');
+        }
+      }
+    }
+
+    // ========== EXPORTAÇÃO ==========
+    function exportGPX() {
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        showNotification('Nenhuma coordenada para exportar', 'error');
+        return;
+      }
+
+      const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GeoHorizon Pro">
+  <wpt lat="${lat}" lon="${lng}">
+    <name>Observador</name>
+    <time>${new Date().toISOString()}</time>
+  </wpt>
+</gpx>`;
+      
+      const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'geohorizon-pro.gpx';
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showNotification('GPX exportado com sucesso!', 'success');
+    }
+
+    function exportKML() {
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        showNotification('Nenhuma coordenada para exportar', 'error');
+        return;
+      }
+
+      const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>GeoHorizon Pro</name>
+    <Placemark>
+      <name>Observador</name>
+      <Point>
+        <coordinates>${lng},${lat},0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>`;
+      
+      const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'geohorizon-pro.kml';
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showNotification('KML exportado com sucesso!', 'success');
+    }
+
+    function exportJSON() {
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        showNotification('Nenhuma coordenada para exportar', 'error');
+        return;
+      }
+
+      const data = {
+        observador: { latitude: lat, longitude: lng },
+        modo: currentMode,
+        timestamp: new Date().toISOString()
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'geohorizon-pro.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showNotification('JSON exportado com sucesso!', 'success');
+    }
+
+    // ========== INICIALIZAÇÃO ==========
+    document.addEventListener('DOMContentLoaded', () => {
+      // Inicializar mapa
+      map = L.map('map', {
+        zoomControl: false
+      }).setView([ABROLHOS.lat, ABROLHOS.lng], 11);
+
+      // Camadas do mapa
+      const tileLayers = {
+        streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap',
+          maxZoom: 19
+        }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: '© Esri'
+        }),
+        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenTopoMap'
+        })
+      };
+
+      baseLayer = tileLayers.streets;
+      baseLayer.addTo(map);
+
+      // Controles do mapa
+      L.control.zoom({ position: 'topright' }).addTo(map);
+      L.control.scale({ position: 'bottomright', metric: true, imperial: false }).addTo(map);
+
+      // Botão de centralizar
+      const CenterControl = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function() {
+          const button = L.DomUtil.create('button', 'center-button');
+          button.innerHTML = '⌖';
+          button.title = 'Centralizar em Abrolhos';
+          button.onclick = () => {
+            map.setView([ABROLHOS.lat, ABROLHOS.lng], 11);
+            document.getElementById('latitude').value = ABROLHOS.lat;
+            document.getElementById('longitude').value = ABROLHOS.lng;
+            updateMap();
+          };
+          return button;
+        }
+      });
+      new CenterControl().addTo(map);
+
+      // Click no mapa
+      map.on('click', handleMapClick);
+
+      // Inicializar coordenadas
+      document.getElementById('latitude').value = ABROLHOS.lat;
+      document.getElementById('longitude').value = ABROLHOS.lng;
+      updateMap();
+
+      // Event Listeners - Mode Selector
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+          e.target.classList.add('active');
+          
+          currentMode = e.target.dataset.mode;
+          
+          // Esconder todos os parâmetros
+          document.querySelectorAll('[id^="params-"]').forEach(p => p.style.display = 'none');
+          
+          // Mostrar parâmetros do modo selecionado
+          document.getElementById(`params-${currentMode}`).style.display = 'block';
+          
+          // Limpar medições se não estiver em modo medição
+          if (currentMode !== 'medicao') {
+            measurementActive = false;
+            document.getElementById('toggleMeasurement').textContent = 'Ativar Medição';
+            document.getElementById('toggleMeasurement').classList.remove('btn-primary');
+            document.getElementById('toggleMeasurement').classList.add('btn-success');
+            clearMeasurements();
+          }
+          
+          // Esconder resultados
+          document.getElementById('resultados').style.display = 'none';
+        });
+      });
+
+      // Event Listeners - Botões
+      document.getElementById('getLocation').addEventListener('click', () => {
+        if (!navigator.geolocation) {
+          showNotification('Geolocalização não suportada', 'error');
+          return;
+        }
+
+        showLoading(true, 'Obtendo localização...');
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            document.getElementById('latitude').value = position.coords.latitude;
+            document.getElementById('longitude').value = position.coords.longitude;
+            map.setView([position.coords.latitude, position.coords.longitude], 13);
+            updateMap();
+            showLoading(false);
+            showNotification('Localização obtida com sucesso!', 'success');
+          },
+          (error) => {
+            showLoading(false);
+            showNotification('Erro ao obter localização', 'error');
+            console.error(error);
+          }
+        );
+      });
+
+      document.getElementById('pickFromMap').addEventListener('click', (e) => {
+        mapPickingActive = !mapPickingActive;
+        
+        if (mapPickingActive) {
+          e.target.textContent = '✖️ Cancelar Seleção';
+          e.target.classList.remove('btn-success');
+          e.target.classList.add('btn-primary');
+          map.getContainer().classList.add('crosshair-cursor');
+          showNotification('Clique no mapa para selecionar as coordenadas', 'success');
+          
+          // Desativar medição se estiver ativa
+          if (measurementActive) {
+            measurementActive = false;
+            document.getElementById('toggleMeasurement').textContent = 'Ativar Medição';
+            document.getElementById('toggleMeasurement').classList.remove('btn-primary');
+            document.getElementById('toggleMeasurement').classList.add('btn-success');
+          }
+        } else {
+          e.target.textContent = '🗺️ Selecionar no Mapa';
+          e.target.classList.remove('btn-primary');
+          e.target.classList.add('btn-success');
+          map.getContainer().classList.remove('crosshair-cursor');
+        }
+      });
+
+      document.getElementById('calcular').addEventListener('click', handleCalcular);
+      document.getElementById('calcularHorizonte').addEventListener('click', handleCalcularHorizonte);
+      document.getElementById('calcularObjeto').addEventListener('click', handleCalcularObjeto);
+
+      document.getElementById('toggleMeasurement').addEventListener('click', (e) => {
+        measurementActive = !measurementActive;
+        
+        if (measurementActive) {
+          e.target.textContent = 'Desativar Medição';
+          e.target.classList.remove('btn-success');
+          e.target.classList.add('btn-primary');
+          showNotification('Clique no mapa para marcar 2 pontos', 'success');
+        } else {
+          e.target.textContent = 'Ativar Medição';
+          e.target.classList.remove('btn-primary');
+          e.target.classList.add('btn-success');
+          clearMeasurements();
+          document.getElementById('resultados').style.display = 'none';
+        }
+      });
+
+      document.getElementById('clearMeasurement').addEventListener('click', () => {
+        clearMeasurements();
+        document.getElementById('resultados').style.display = 'none';
+        showNotification('Medições limpas', 'success');
+      });
+
+      // Event Listeners - Configurações
+      document.getElementById('toggleRings').addEventListener('change', (e) => {
+        if (e.target.checked) {
+          updateMap();
+        } else {
+          clearRings();
+        }
+      });
+
+      document.getElementById('toggleLabels').addEventListener('change', () => {
+        updateMap();
+      });
+
+      document.getElementById('toggleCompass').addEventListener('change', (e) => {
+        document.getElementById('compass').style.display = e.target.checked ? 'flex' : 'none';
+      });
+
+      document.getElementById('mapStyle').addEventListener('change', (e) => {
+        map.removeLayer(baseLayer);
+        baseLayer = tileLayers[e.target.value];
+        baseLayer.addTo(map);
+      });
+
+      // Event Listeners - Coordenadas
+      document.getElementById('latitude').addEventListener('change', updateMap);
+      document.getElementById('longitude').addEventListener('change', updateMap);
+
+      // Event Listeners - Exportação
+      document.getElementById('exportGPX').addEventListener('click', exportGPX);
+      document.getElementById('exportKML').addEventListener('click', exportKML);
+      document.getElementById('exportJSON').addEventListener('click', exportJSON);
+
+      // Bússola
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', (e) => {
+          const heading = e.webkitCompassHeading || (e.alpha ? 360 - e.alpha : 0);
+          document.getElementById('compassNeedle').style.transform = `rotate(${heading}deg)`;
+        });
+      }
+    });
+  </script>
+</body>
+</html>
