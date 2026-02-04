@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0e27">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>GeoHorizon Pro - Projeção Geográfica Avançada</title>
+  
+  <!-- CDN Dependencies -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-measure/dist/leaflet-measure.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Local CSS -->
+  <link rel="stylesheet" href="src/css/style.css">
+</head>
+<body>
+  <div class="header">
+    <h1>GeoHorizon Pro</h1>
+    <p>Projeção Geográfica, Cálculo de Horizonte & Medições Avançadas</p>
+  </div>
+
+  <div class="main-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <!-- Theme Toggle -->
+      <div class="theme-toggle">
+        <label class="toggle-switch">
+          <input type="checkbox" id="theme-toggle-checkbox">
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      
+      <!-- Mode Selector -->
+      <div class="mode-selector">
+        <button class="mode-btn active" data-mode="projecao">🎯 Projeção</button>
+        <button class="mode-btn" data-mode="horizonte">🌅 Horizonte</button>
+        <button class="mode-btn" data-mode="objeto">🏢 Objeto</button>
+        <button class="mode-btn" data-mode="medicao">📏 Medição</button>
+      </div>
+
+      <!-- Localização -->
+      <div class="section">
+        <div class="section-title">📍 Localização</div>
+        <button class="btn btn-secondary" id="getLocation">📱 Usar Minha Localização</button>
+        <button class="btn btn-success" id="pickFromMap" style="margin-top: 0.5rem;">🗺️ Selecionar no Mapa</button>
+        
+        <div class="input-grid" style="margin-top: 1rem;">
+          <div class="input-group">
+            <label class="input-label">Latitude</label>
+            <input type="number" class="input-field" id="latitude" step="0.000001">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Longitude</label>
+            <input type="number" class="input-field" id="longitude" step="0.000001">
+          </div>
+        </div>
+      </div>
+
+      <!-- Parâmetros - Projeção -->
+      <div class="section" id="params-projecao">
+        <div class="section-title">⚙️ Parâmetros de Projeção</div>
+        <div class="input-group">
+          <label class="input-label">Elevação (m)</label>
+          <input type="number" class="input-field" id="elevacao" value="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Distância (km)</label>
+          <input type="number" class="input-field" id="distancia" value="10" step="0.1" min="0">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Azimute Magnético (°)</label>
+          <input type="number" class="input-field" id="azimute" value="0" step="0.1" min="0" max="360">
+        </div>
+        <button class="btn btn-primary" id="calcular">🔬 Calcular Projeção</button>
+      </div>
+
+      <!-- Parâmetros - Horizonte -->
+      <div class="section" id="params-horizonte" style="display: none;">
+        <div class="section-title">⚙️ Cálculo de Horizonte</div>
+        <div class="input-group">
+          <label class="input-label">Altura do Observador (m)</label>
+          <input type="number" class="input-field" id="alturaObservador" value="1.7" step="0.1" min="0">
+        </div>
+        <button class="btn btn-primary" id="calcularHorizonte">🔬 Calcular Horizonte</button>
+      </div>
+
+      <!-- Parâmetros - Objeto -->
+      <div class="section" id="params-objeto" style="display: none;">
+        <div class="section-title">⚙️ Cálculo de Objeto</div>
+        <div class="input-group">
+          <label class="input-label">Altura do Observador (m)</label>
+          <input type="number" class="input-field" id="alturaObservadorObj" value="1.7" step="0.1" min="0">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Altura do Objeto (m)</label>
+          <input type="number" class="input-field" id="alturaObjeto" value="50" step="0.1" min="0">
+        </div>
+        <button class="btn btn-primary" id="calcularObjeto">🔬 Calcular Distância</button>
+      </div>
+
+      <!-- Parâmetros - Medição -->
+      <div class="section" id="params-medicao" style="display: none;">
+        <div class="section-title">📏 Medição de Distância</div>
+        <button class="btn btn-success" id="toggleMeasurement">Ativar Medição</button>
+        <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--color-text-secondary);">
+          Clique no mapa para marcar 2 pontos e medir a distância entre eles.
+        </p>
+        <button class="btn btn-secondary btn-small" id="clearMeasurement" style="margin-top: 0.75rem;">Limpar Medições</button>
+      </div>
+
+      <!-- Resultados -->
+      <div class="section" id="resultados" style="display: none;">
+        <div class="section-title">📊 Resultados</div>
+        <div id="resultsContent"></div>
+      </div>
+
+      <!-- Configurações do Mapa -->
+      <div class="section">
+        <div class="section-title">🗺️ Configurações do Mapa</div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleRings" checked>
+          <label for="toggleRings">Anéis de Distância</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleLabels" checked>
+          <label for="toggleLabels">Legendas dos Anéis</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleCompass" checked>
+          <label for="toggleCompass">Bússola</label>
+        </div>
+        <div class="input-group" style="margin-top: 0.75rem;">
+          <label class="input-label">Estilo do Mapa</label>
+          <select class="select-field" id="mapStyle">
+            <option value="streets">OpenStreetMap</option>
+            <option value="satellite">Satélite</option>
+            <option value="terrain">Terreno</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Exportação -->
+      <div class="section">
+        <div class="section-title">💾 Exportar Dados</div>
+        <div class="export-buttons">
+          <button class="btn btn-secondary btn-small" id="exportGPX">GPX</button>
+          <button class="btn btn-secondary btn-small" id="exportKML">KML</button>
+          <button class="btn btn-secondary btn-small" id="exportJSON">JSON</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="map-container">
+      <div id="map"></div>
+      <div class="compass" id="compass">
+        <div class="compass-needle" id="compassNeedle"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification -->
+  <div class="notification" id="notification"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="loading-spinner"></div>
+    <p id="loadingText">Carregando...</p>
+  </div>
+
+  <!-- CDN Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-measure/dist/leaflet-measure.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  
+  <!-- Local Scripts -->
+  <script src="src/js/constants.js"></script>
+  <script src="src/js/utils.js"></script>
+  <script src="src/js/calculations.js"></script>
+  <script src="src/js/map.js"></script>
+  <script src="src/js/handlers.js"></script>
+  <script src="src/js/export.js"></script>
+  <script src="src/js/main.js"></script>
+</body>
+</html>
