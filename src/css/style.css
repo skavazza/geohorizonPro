@@ -61,7 +61,7 @@ body {
 }
 
 @media (prefers-color-scheme: light) {
-  body:not([data-theme="dark"]) {
+  :root:not([data-theme]) {
     --color-bg-primary: #f0f4f8;
     --color-bg-secondary: #ffffff;
     --color-bg-tertiary: #e6eaf0;
@@ -70,6 +70,9 @@ body {
     --color-accent-green: #2a9d8f;
     --color-text-primary: #1d3557;
     --color-text-secondary: #457b9d;
+  }
+
+  :root:not([data-theme]) body {
     background-image: 
       linear-gradient(rgba(0, 119, 182, 0.03) 1px, transparent 1px),
       linear-gradient(90deg, rgba(0, 119, 182, 0.03) 1px, transparent 1px);
@@ -112,10 +115,6 @@ body {
   letter-spacing: 0.05em;
   margin-bottom: 0.5rem;
   text-transform: uppercase;
-}
-
-[data-theme="light"] .header h1 {
-  background: linear-gradient(135deg, var(--color-accent-cyan) 0%, var(--color-accent-orange) 100%);
 }
 
 .header p {
@@ -183,6 +182,93 @@ body {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 1rem;
+}
+
+.settings-open-button {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.settings-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(560px, calc(100% - 2rem));
+  max-width: none;
+  max-height: min(85vh, 760px);
+  max-height: min(85dvh, 760px);
+  overflow: hidden;
+  padding: 1.5rem;
+  border: 1px solid rgba(0, 255, 245, 0.25);
+  border-radius: 16px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.settings-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-dialog::backdrop {
+  background: rgba(3, 8, 24, 0.75);
+  backdrop-filter: blur(3px);
+}
+
+.settings-dialog-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.settings-dialog-header .section-title {
+  flex: 1;
+  margin: 0;
+}
+
+.settings-dialog-content {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.settings-dialog-content .section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-dialog-close {
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(0, 255, 245, 0.3);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-dialog-close:hover {
+  color: var(--color-accent-cyan);
+  border-color: var(--color-accent-cyan);
+}
+
+.settings-dialog-actions {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  padding-top: 1rem;
+}
+
+.settings-dialog-actions .btn {
+  width: auto;
+  min-width: 140px;
+  margin-top: 0;
 }
 
 .toggle-switch {
@@ -315,6 +401,30 @@ input:checked + .switch-slider:before {
   padding-bottom: 0.5rem;
 }
 
+.collapsible-section > .section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.collapsible-section > .section-title::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-section > .section-title::after {
+  content: '⌄';
+  font-family: Arial, sans-serif;
+  font-size: 1.2rem;
+  transition: transform 160ms ease;
+}
+
+.collapsible-section:not([open]) > .section-title::after {
+  transform: rotate(-90deg);
+}
+
 [data-theme="light"] .section-title {
   color: var(--color-accent-cyan);
   border-bottom: 1px solid rgba(0, 119, 182, 0.2);
@@ -365,6 +475,12 @@ input:checked + .switch-slider:before {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+}
+
+.initial-location-actions {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.25rem 0 1rem;
 }
 
 .btn {
@@ -542,6 +658,33 @@ input:checked + .switch-slider:before {
   height: 100%;
 }
 
+.leaflet-div-icon.ring-label {
+  background: transparent;
+  border: 0;
+}
+
+.ring-label-text {
+  color: #fff;
+  font: 700 10px var(--font-body);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.unit-distance-scale {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  color: #222;
+  font: 11px/1.2 Arial, sans-serif;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.unit-distance-scale-bar {
+  border: 1px solid #222;
+  border-top: 0;
+  height: 5px;
+}
+
 .leaflet-popup-content-wrapper {
   background: var(--color-bg-secondary);
   color: var(--color-text-primary);
@@ -693,6 +836,13 @@ input:checked + .switch-slider:before {
 }
 
 @media (max-width: 768px) {
+  .settings-dialog {
+    width: calc(100% - 1rem);
+    max-height: 90vh;
+    max-height: 90dvh;
+    padding: 1rem;
+  }
+
   .compass {
     width: 60px;
     height: 60px;

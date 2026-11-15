@@ -22,14 +22,10 @@ function showLoading(show, text = 'Carregando...') {
   loading.className = show ? 'loading show' : 'loading';
 }
 
-function clearMarkers() {
-  markers.forEach(m => map.removeLayer(m));
-  markers = [];
-}
-
-function clearCircles() {
-  circles.forEach(c => map.removeLayer(c));
-  circles = [];
+function clearCalculationLayers() {
+  calculationLayers.forEach(layer => map.removeLayer(layer));
+  calculationLayers = [];
+  if (lastResult && lastResult.modo !== 'medicao') lastResult = null;
 }
 
 function clearRings() {
@@ -46,6 +42,7 @@ function clearMeasurements() {
     map.removeLayer(measurementLine);
     measurementLine = null;
   }
+  if (lastResult && lastResult.modo === 'medicao') lastResult = null;
 }
 
 function toggleTheme() {

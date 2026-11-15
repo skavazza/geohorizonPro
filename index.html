@@ -32,6 +32,9 @@
           <span class="switch-slider"></span>
         </label>
       </div>
+      <button class="btn btn-secondary settings-open-button" id="openSettings" type="button" aria-haspopup="dialog" aria-controls="settingsDialog">
+        ⚙️ Configurações
+      </button>
       
       <!-- Mode Selector -->
       <div class="mode-selector">
@@ -47,35 +50,63 @@
         <button class="btn btn-secondary" id="getLocation">📱 Usar Minha Localização</button>
         <button class="btn btn-success" id="pickFromMap" style="margin-top: 0.5rem;">🗺️ Selecionar no Mapa</button>
         
-        <div class="input-grid" style="margin-top: 1rem;">
+        <div id="geographicCoordinateInputs" class="input-grid" style="margin-top: 1rem;">
           <div class="input-group">
-            <label class="input-label">Latitude</label>
-            <input type="number" class="input-field" id="latitude" step="0.000001">
+            <label class="input-label" for="latitudeEntry">Latitude</label>
+            <input type="text" class="input-field" id="latitudeEntry">
           </div>
           <div class="input-group">
-            <label class="input-label">Longitude</label>
-            <input type="number" class="input-field" id="longitude" step="0.000001">
+            <label class="input-label" for="longitudeEntry">Longitude</label>
+            <input type="text" class="input-field" id="longitudeEntry">
           </div>
         </div>
+        <div id="utmCoordinateInputs" class="input-grid" style="display: none; margin-top: 1rem;">
+          <div class="input-group">
+            <label class="input-label" for="utmZone">Zona UTM</label>
+            <input type="number" class="input-field" id="utmZone" min="1" max="60" step="1">
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="utmHemisphere">Hemisfério</label>
+            <select class="select-field" id="utmHemisphere">
+              <option value="N">Norte (N)</option>
+              <option value="S">Sul (S)</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="utmEasting">Easting (m)</label>
+            <input type="number" class="input-field" id="utmEasting" min="100000" max="900000" step="0.01">
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="utmNorthing">Northing (m)</label>
+            <input type="number" class="input-field" id="utmNorthing" min="0" max="10000000" step="0.01">
+          </div>
+        </div>
+        <input type="hidden" id="latitude">
+        <input type="hidden" id="longitude">
       </div>
 
       <!-- Parâmetros - Projeção -->
-      <div class="section" id="params-projecao">
-        <div class="section-title">⚙️ Parâmetros de Projeção</div>
+      <details class="section collapsible-section" id="params-projecao" open>
+        <summary class="section-title">⚙️ Parâmetros de Projeção</summary>
         <div class="input-group">
           <label class="input-label">Elevação (m)</label>
           <input type="number" class="input-field" id="elevacao" value="0" step="0.1">
         </div>
         <div class="input-group">
-          <label class="input-label">Distância (km)</label>
+          <label class="input-label" id="distanceLabel">Distância (km)</label>
           <input type="number" class="input-field" id="distancia" value="10" step="0.1" min="0">
         </div>
         <div class="input-group">
           <label class="input-label">Azimute Magnético (°)</label>
           <input type="number" class="input-field" id="azimute" value="0" step="0.1" min="0" max="360">
         </div>
+        <div class="input-group">
+          <label class="input-label" for="declinacaoMagnetica">Declinação Magnética (°)</label>
+          <input type="number" class="input-field" id="declinacaoMagnetica" step="0.01" min="-180" max="180" required>
+          <small style="color: var(--color-text-secondary);">Oeste: negativa; leste: positiva.</small>
+        </div>
         <button class="btn btn-primary" id="calcular">🔬 Calcular Projeção</button>
-      </div>
+      </details>
 
       <!-- Parâmetros - Horizonte -->
       <div class="section" id="params-horizonte" style="display: none;">
@@ -117,31 +148,6 @@
         <div id="resultsContent"></div>
       </div>
 
-      <!-- Configurações do Mapa -->
-      <div class="section">
-        <div class="section-title">🗺️ Configurações do Mapa</div>
-        <div class="checkbox-group">
-          <input type="checkbox" id="toggleRings" checked>
-          <label for="toggleRings">Anéis de Distância</label>
-        </div>
-        <div class="checkbox-group">
-          <input type="checkbox" id="toggleLabels" checked>
-          <label for="toggleLabels">Legendas dos Anéis</label>
-        </div>
-        <div class="checkbox-group">
-          <input type="checkbox" id="toggleCompass" checked>
-          <label for="toggleCompass">Bússola</label>
-        </div>
-        <div class="input-group" style="margin-top: 0.75rem;">
-          <label class="input-label">Estilo do Mapa</label>
-          <select class="select-field" id="mapStyle">
-            <option value="streets">OpenStreetMap</option>
-            <option value="satellite">Satélite</option>
-            <option value="terrain">Terreno</option>
-          </select>
-        </div>
-      </div>
-
       <!-- Exportação -->
       <div class="section">
         <div class="section-title">💾 Exportar Dados</div>
@@ -162,6 +168,96 @@
     </div>
   </div>
 
+  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsDialogTitle">
+    <div class="settings-dialog-header">
+      <h2 class="section-title" id="settingsDialogTitle">⚙️ Configurações</h2>
+      <button class="settings-dialog-close" id="closeSettings" type="button" aria-label="Fechar configurações">×</button>
+    </div>
+    <div class="settings-dialog-content">
+      <section class="section">
+        <div class="section-title">Unidades e Coordenadas</div>
+        <div class="input-group">
+          <label class="input-label" for="distanceUnit">Unidade de distância</label>
+          <select class="select-field" id="distanceUnit">
+            <option value="m">Metros (m)</option>
+            <option value="km">Quilômetros (km)</option>
+            <option value="nm">Milhas náuticas (NM)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="coordinateFormat">Formato de coordenadas</label>
+          <select class="select-field" id="coordinateFormat">
+            <option value="decimal">Graus decimais (DD)</option>
+            <option value="decimalMinutes">Graus e minutos decimais (DDM)</option>
+            <option value="dms">Graus, minutos e segundos (DMS)</option>
+            <option value="utm">UTM</option>
+          </select>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="cardinalDirections" checked>
+          <label for="cardinalDirections">Usar siglas cardinais (N/S/E/W)</label>
+        </div>
+        <small style="color: var(--color-text-secondary);">UTM usa zona, hemisfério e coordenadas em metros.</small>
+      </section>
+      <section class="section">
+        <div class="section-title">Configurações do Mapa</div>
+        <div class="input-grid">
+          <div class="input-group">
+            <label class="input-label" for="initialLatitude">Latitude inicial</label>
+            <input class="input-field" id="initialLatitude" type="number" min="-90" max="90" step="any">
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="initialLongitude">Longitude inicial</label>
+            <input class="input-field" id="initialLongitude" type="number" min="-180" max="180" step="any">
+          </div>
+        </div>
+        <div class="initial-location-actions">
+          <button class="btn btn-secondary btn-small" id="saveInitialMapLocation" type="button">Salvar posição inicial</button>
+          <button class="btn btn-secondary btn-small" id="useCurrentAsInitialLocation" type="button">Usar localização atual</button>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleRings" checked>
+          <label for="toggleRings">Anéis de Distância</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleLabels" checked>
+          <label for="toggleLabels">Legendas dos Anéis</label>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="ringDistanceUnit">Unidade dos anéis</label>
+          <select class="select-field" id="ringDistanceUnit">
+            <option value="m">Metros (m)</option>
+            <option value="km">Quilômetros (km)</option>
+            <option value="nm">Milhas náuticas (NM)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="ringCount">Quantidade de anéis</label>
+          <input class="input-field" id="ringCount" type="number" min="1" max="100" step="1" value="16">
+        </div>
+        <div class="input-group">
+          <label class="input-label" id="ringSpacingLabel" for="ringSpacing">Intervalo entre anéis (km)</label>
+          <input class="input-field" id="ringSpacing" type="number" min="0.01" step="0.01" value="1.85">
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="toggleCompass" checked>
+          <label for="toggleCompass">Bússola</label>
+        </div>
+        <div class="input-group" style="margin-top: 0.75rem;">
+          <label class="input-label" for="mapStyle">Estilo do Mapa</label>
+          <select class="select-field" id="mapStyle">
+            <option value="streets">OpenStreetMap</option>
+            <option value="satellite">Satélite</option>
+            <option value="terrain">Terreno</option>
+          </select>
+        </div>
+      </section>
+    </div>
+    <div class="settings-dialog-actions">
+      <button class="btn btn-primary" id="doneSettings" type="button">Concluído</button>
+    </div>
+  </dialog>
+
   <!-- Notification -->
   <div class="notification" id="notification"></div>
 
@@ -175,10 +271,12 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-measure/dist/leaflet-measure.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.js"></script>
   
   <!-- Local Scripts -->
   <script src="src/js/constants.js"></script>
   <script src="src/js/utils.js"></script>
+  <script src="src/js/preferences.js"></script>
   <script src="src/js/calculations.js"></script>
   <script src="src/js/map.js"></script>
   <script src="src/js/handlers.js"></script>

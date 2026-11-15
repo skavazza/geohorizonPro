@@ -1,8 +1,9 @@
 // ========== VARIÁVEIS GLOBAIS ==========
 let map;
 let currentMode = 'projecao';
-let markers = [];
-let circles = [];
+let observerMarker = null;
+let calculationLayers = [];
+let lastResult = null;
 let rings = [];
 let labels = [];
 let measurementMarkers = [];
@@ -11,16 +12,28 @@ let measurementActive = false;
 let mapPickingActive = false;
 let baseLayer = null;
 let compassHeading = 0;
+let distanceScaleControl = null;
 
 // ========== INICIALIZAÇÃO ==========
 document.addEventListener('DOMContentLoaded', () => {
   // Inicializar tema
   initializeTheme();
-  
+  document.getElementById('declinacaoMagnetica').value = DECLINACAO_MAGNETICA_PADRAO;
+  initializePreferences();
+
+  const settingsDialog = document.getElementById('settingsDialog');
+  document.getElementById('openSettings').addEventListener('click', () => settingsDialog.showModal());
+  document.getElementById('closeSettings').addEventListener('click', () => settingsDialog.close());
+  document.getElementById('doneSettings').addEventListener('click', () => settingsDialog.close());
+  settingsDialog.addEventListener('click', (event) => {
+    if (event.target === settingsDialog) settingsDialog.close();
+  });
+
   // Inicializar mapa
+  const initialLocation = userPreferences.initialMapLocation;
   map = L.map('map', {
     zoomControl: false
-  }).setView([ABROLHOS.lat, ABROLHOS.lng], 11);
+  }).setView([initialLocation.latitude, initialLocation.longitude], 11);
 
   // Camadas do mapa
   const tileLayers = {
@@ -41,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Controles do mapa
   L.control.zoom({ position: 'topright' }).addTo(map);
-  L.control.scale({ position: 'bottomright', metric: true, imperial: false }).addTo(map);
+  distanceScaleControl = createDistanceScaleControl(map).addTo(map);
 
   // Botão de centralizar
   const CenterControl = L.Control.extend({
@@ -49,11 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
     onAdd: function() {
       const button = L.DomUtil.create('button', 'center-button');
       button.innerHTML = '⌖';
-      button.title = 'Centralizar em Abrolhos';
+      button.title = 'Centralizar na posição inicial';
       button.onclick = () => {
-        map.setView([ABROLHOS.lat, ABROLHOS.lng], 11);
-        document.getElementById('latitude').value = ABROLHOS.lat;
-        document.getElementById('longitude').value = ABROLHOS.lng;
+        const location = userPreferences.initialMapLocation;
+        map.setView([location.latitude, location.longitude], 11);
+        setCoordinates(location.latitude, location.longitude);
         updateMap();
       };
       return button;
@@ -65,8 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
   map.on('click', handleMapClick);
 
   // Inicializar coordenadas
-  document.getElementById('latitude').value = ABROLHOS.lat;
-  document.getElementById('longitude').value = ABROLHOS.lng;
+  setCoordinates(initialLocation.latitude, initialLocation.longitude);
   updateMap();
 
   // Event Listeners - Mode Selector
@@ -76,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.target.classList.add('active');
       
       currentMode = e.target.dataset.mode;
+      lastResult = null;
       
       // Esconder todos os parâmetros
       document.querySelectorAll('[id^="params-"]').forEach(p => p.style.display = 'none');
@@ -110,8 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showLoading(true, 'Obtendo localização...');
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        document.getElementById('latitude').value = position.coords.latitude;
-        document.getElementById('longitude').value = position.coords.longitude;
+        setCoordinates(position.coords.latitude, position.coords.longitude);
         map.setView([position.coords.latitude, position.coords.longitude], 13);
         updateMap();
         showLoading(false);
@@ -180,14 +192,23 @@ document.addEventListener('DOMContentLoaded', () => {
   // Event Listeners - Configurações
   document.getElementById('toggleRings').addEventListener('change', (e) => {
     if (e.target.checked) {
-      updateMap();
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lng = parseFloat(document.getElementById('longitude').value);
+      createRings(lat, lng);
     } else {
       clearRings();
     }
   });
 
   document.getElementById('toggleLabels').addEventListener('change', () => {
-    updateMap();
+    const lat = parseFloat(document.getElementById('latitude').value);
+    const lng = parseFloat(document.getElementById('longitude').value);
+    createRings(lat, lng);
+  });
+  document.getElementById('ringCount').addEventListener('change', changeRingSettings);
+  document.getElementById('ringSpacing').addEventListener('change', changeRingSettings);
+  document.getElementById('ringDistanceUnit').addEventListener('change', (event) => {
+    changeRingDistanceUnit(event.target.value);
   });
 
   document.getElementById('toggleCompass').addEventListener('change', (e) => {
@@ -199,10 +220,29 @@ document.addEventListener('DOMContentLoaded', () => {
     baseLayer = tileLayers[e.target.value];
     baseLayer.addTo(map);
   });
+  document.getElementById('saveInitialMapLocation').addEventListener('click', saveInitialMapLocation);
+  document.getElementById('useCurrentAsInitialLocation').addEventListener('click', useCurrentLocationAsInitial);
+
+  document.getElementById('distanceUnit').addEventListener('change', (e) => {
+    changeDistanceUnit(e.target.value);
+    distanceScaleControl.update();
+    const lat = parseFloat(document.getElementById('latitude').value);
+    const lng = parseFloat(document.getElementById('longitude').value);
+    createRings(lat, lng);
+  });
+  document.getElementById('coordinateFormat').addEventListener('change', (e) => {
+    changeCoordinateFormat(e.target.value);
+  });
+  document.getElementById('cardinalDirections').addEventListener('change', (e) => {
+    changeCardinalDirections(e.target.checked);
+  });
 
   // Event Listeners - Coordenadas
-  document.getElementById('latitude').addEventListener('change', updateMap);
-  document.getElementById('longitude').addEventListener('change', updateMap);
+  ['latitudeEntry', 'longitudeEntry', 'utmZone', 'utmHemisphere', 'utmEasting', 'utmNorthing'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', () => {
+      if (applyCoordinateInputs()) updateMap();
+    });
+  });
 
   // Event Listeners - Exportação
   document.getElementById('exportGPX').addEventListener('click', exportGPX);

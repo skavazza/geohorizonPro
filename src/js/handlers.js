@@ -3,7 +3,7 @@ function handleCalcular() {
   const resultado = calcularProjecao();
   if (!resultado) return;
 
-  clearCircles();
+  clearCalculationLayers();
 
   const lat = parseFloat(document.getElementById('latitude').value);
   const lng = parseFloat(document.getElementById('longitude').value);
@@ -15,33 +15,44 @@ function handleCalcular() {
       html: `<div style="width: 20px; height: 20px; background: var(--color-accent-orange); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px var(--color-accent-orange);"></div>`,
       iconSize: [26, 26]
     })
-  }).addTo(map).bindPopup(`
+  }).addTo(map).bindPopup(() => `
     <strong>Alvo Projetado</strong><br>
-    Lat: ${resultado.lat.toFixed(6)}°<br>
-    Lng: ${resultado.lng.toFixed(6)}°<br>
+    ${coordinateDisplayMarkup(resultado.lat, resultado.lng)}<br>
     Azimute Mag: ${resultado.azimuteMag.toFixed(2)}°<br>
     Azimute Real: ${resultado.azVerdadeiro.toFixed(2)}°<br>
-    Distância: ${resultado.distancia} km
+    Distância: ${distanceDisplayMarkup(resultado.distancia)}
   `).openPopup();
-  markers.push(targetMarker);
+  calculationLayers.push(targetMarker);
 
   // Linha do observador ao alvo
-  L.polyline([[lat, lng], [resultado.lat, resultado.lng]], {
+  const projectionLine = L.polyline([[lat, lng], [resultado.lat, resultado.lng]], {
     color: 'var(--color-accent-orange)',
     weight: 2,
     dashArray: '5, 10'
   }).addTo(map);
+  calculationLayers.push(projectionLine);
+
+  lastResult = {
+    modo: 'projecao',
+    calculadoEm: new Date().toISOString(),
+    parametros: {
+      distanciaKm: resultado.distancia,
+      azimuteMagneticoGraus: resultado.azimuteMag,
+      declinacaoMagneticaGraus: resultado.declinacaoMag,
+      elevacaoM: resultado.elevacao
+    },
+    resultado: {
+      alvo: { latitude: resultado.lat, longitude: resultado.lng },
+      azimuteVerdadeiroGraus: resultado.azVerdadeiro
+    }
+  };
 
   // Mostrar resultados
   document.getElementById('resultados').style.display = 'block';
   document.getElementById('resultsContent').innerHTML = `
     <div class="result-item">
-      <span class="result-label">Latitude Alvo</span>
-      <span class="result-value">${resultado.lat.toFixed(6)}°</span>
-    </div>
-    <div class="result-item">
-      <span class="result-label">Longitude Alvo</span>
-      <span class="result-value">${resultado.lng.toFixed(6)}°</span>
+      <span class="result-label">Coordenadas do Alvo</span>
+      <span class="result-value">${coordinateDisplayMarkup(resultado.lat, resultado.lng)}</span>
     </div>
     <div class="result-item">
       <span class="result-label">Azimute Magnético</span>
@@ -53,7 +64,7 @@ function handleCalcular() {
     </div>
     <div class="result-item">
       <span class="result-label">Distância</span>
-      <span class="result-value">${resultado.distancia.toFixed(2)} km</span>
+      <span class="result-value">${distanceDisplayMarkup(resultado.distancia)}</span>
     </div>
   `;
 
@@ -65,14 +76,14 @@ function handleCalcularHorizonte() {
   const lat = parseFloat(document.getElementById('latitude').value);
   const lng = parseFloat(document.getElementById('longitude').value);
 
-  if (isNaN(altura) || isNaN(lat) || isNaN(lng)) {
+  if (isNaN(altura) || altura < 0 || isNaN(lat) || isNaN(lng)) {
     showNotification('Por favor, preencha todos os campos', 'error');
     return;
   }
 
   const distancia = calcularDistanciaHorizonte(altura);
 
-  clearCircles();
+  clearCalculationLayers();
 
   // Círculo do horizonte
   const horizonCircle = L.circle([lat, lng], {
@@ -82,7 +93,14 @@ function handleCalcularHorizonte() {
     fillOpacity: 0.1,
     weight: 2
   }).addTo(map);
-  circles.push(horizonCircle);
+  calculationLayers.push(horizonCircle);
+
+  lastResult = {
+    modo: 'horizonte',
+    calculadoEm: new Date().toISOString(),
+    parametros: { alturaObservadorM: altura },
+    resultado: { distanciaKm: distancia }
+  };
 
   // Ajustar visualização
   map.fitBounds(horizonCircle.getBounds());
@@ -96,15 +114,11 @@ function handleCalcularHorizonte() {
     </div>
     <div class="result-item">
       <span class="result-label">Distância ao Horizonte</span>
-      <span class="result-value">${distancia.toFixed(2)} km</span>
-    </div>
-    <div class="result-item">
-      <span class="result-label">Distância em Milhas Náuticas</span>
-      <span class="result-value">${(distancia / 1.852).toFixed(2)} NM</span>
+      <span class="result-value">${distanceDisplayMarkup(distancia)}</span>
     </div>
   `;
 
-  showNotification(`Distância ao horizonte: ${distancia.toFixed(2)} km`, 'success');
+  showNotification(`Distância ao horizonte: ${formatDistance(distancia)}`, 'success');
 }
 
 function handleCalcularObjeto() {
@@ -113,14 +127,14 @@ function handleCalcularObjeto() {
   const lat = parseFloat(document.getElementById('latitude').value);
   const lng = parseFloat(document.getElementById('longitude').value);
 
-  if (isNaN(alturaObs) || isNaN(alturaObj) || isNaN(lat) || isNaN(lng)) {
+  if (isNaN(alturaObs) || alturaObs < 0 || isNaN(alturaObj) || alturaObj < 0 || isNaN(lat) || isNaN(lng)) {
     showNotification('Por favor, preencha todos os campos', 'error');
     return;
   }
 
   const distancia = calcularDistanciaObjeto(alturaObs, alturaObj);
 
-  clearCircles();
+  clearCalculationLayers();
 
   // Círculo do objeto
   const objectCircle = L.circle([lat, lng], {
@@ -131,7 +145,14 @@ function handleCalcularObjeto() {
     weight: 2,
     dashArray: '10, 10'
   }).addTo(map);
-  circles.push(objectCircle);
+  calculationLayers.push(objectCircle);
+
+  lastResult = {
+    modo: 'objeto',
+    calculadoEm: new Date().toISOString(),
+    parametros: { alturaObservadorM: alturaObs, alturaObjetoM: alturaObj },
+    resultado: { distanciaKm: distancia }
+  };
 
   // Ajustar visualização
   map.fitBounds(objectCircle.getBounds());
@@ -149,22 +170,17 @@ function handleCalcularObjeto() {
     </div>
     <div class="result-item">
       <span class="result-label">Distância até o Objeto</span>
-      <span class="result-value">${distancia.toFixed(2)} km</span>
-    </div>
-    <div class="result-item">
-      <span class="result-label">Distância em Milhas Náuticas</span>
-      <span class="result-value">${(distancia / 1.852).toFixed(2)} NM</span>
+      <span class="result-value">${distanceDisplayMarkup(distancia)}</span>
     </div>
   `;
 
-  showNotification(`Distância até o objeto: ${distancia.toFixed(2)} km`, 'success');
+  showNotification(`Distância até o objeto: ${formatDistance(distancia)}`, 'success');
 }
 
 function handleMapClick(e) {
   // Modo de seleção de coordenadas
   if (mapPickingActive) {
-    document.getElementById('latitude').value = e.latlng.lat.toFixed(6);
-    document.getElementById('longitude').value = e.latlng.lng.toFixed(6);
+    setCoordinates(e.latlng.lat, e.latlng.lng);
     
     // Desativar modo de seleção
     mapPickingActive = false;
@@ -176,7 +192,7 @@ function handleMapClick(e) {
     // Atualizar mapa com nova localização
     updateMap();
     
-    showNotification(`Coordenadas selecionadas: ${e.latlng.lat.toFixed(6)}°, ${e.latlng.lng.toFixed(6)}°`, 'success');
+    showNotification(`Coordenadas selecionadas: ${formatCoordinates(e.latlng.lat, e.latlng.lng)}`, 'success');
     return;
   }
 
@@ -205,26 +221,31 @@ function handleMapClick(e) {
         color: 'var(--color-accent-green)',
         weight: 3,
         dashArray: '5, 10'
-      }).addTo(map).bindPopup(`
+      }).addTo(map).bindPopup(() => `
         <strong>Distância Medida</strong><br>
-        ${distance.toFixed(2)} km<br>
-        ${(distance / 1.852).toFixed(2)} NM
+        ${distanceDisplayMarkup(distance)}
       `).openPopup();
+
+      lastResult = {
+        modo: 'medicao',
+        calculadoEm: new Date().toISOString(),
+        parametros: {
+          inicio: { latitude: from.lat, longitude: from.lng },
+          fim: { latitude: to.lat, longitude: to.lng }
+        },
+        resultado: { distanciaKm: distance }
+      };
 
       // Mostrar resultados
       document.getElementById('resultados').style.display = 'block';
       document.getElementById('resultsContent').innerHTML = `
         <div class="result-item">
           <span class="result-label">Distância Medida</span>
-          <span class="result-value">${distance.toFixed(2)} km</span>
-        </div>
-        <div class="result-item">
-          <span class="result-label">Distância em Milhas Náuticas</span>
-          <span class="result-value">${(distance / 1.852).toFixed(2)} NM</span>
+          <span class="result-value">${distanceDisplayMarkup(distance)}</span>
         </div>
       `;
 
-      showNotification(`Distância: ${distance.toFixed(2)} km`, 'success');
+      showNotification(`Distância: ${formatDistance(distance)}`, 'success');
     }
   }
 }
